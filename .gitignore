@@ -1,0 +1,12 @@
+target/
+*.class
+*.jar
+
+# Ekte bankdata skal ALDRI inn i git — kun anonymiserte eksempler i data/
+data/*.csv
+!data/eksempel.csv
+
+.idea/
+*.iml
+.vscode/
+.DS_Store
