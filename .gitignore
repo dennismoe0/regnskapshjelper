@@ -10,3 +10,6 @@ data/*.csv
 *.iml
 .vscode/
 .DS_Store
+
+# Sensitive file
+guttasas_ekte_konto_utskrift.txt
