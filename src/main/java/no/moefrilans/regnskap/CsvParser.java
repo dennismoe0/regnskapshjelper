@@ -41,8 +41,22 @@ public class CsvParser {
     // Then needs to split by , and adding it onto it with a period.
     // 2000 + decimal e.g. 23 => 2000.23 which can be used
     // STRING! If we use a double, double value = 2003.23.
-    // =>  BigDecimal value = BigDecimal.valueOf(
-    return new BigDecimal("0");
+    // =>  BigDecimal value = BigDecimal.valueOf(2000.23);
+
+    // Need to handle edge cases
+
+    // Split by period and comma
+    String[] numberParts = stringToParse.split("[.,]");
+    // E.g. "2.000,23"
+    String parsed;
+    if (numberParts.length == 3) {
+      parsed = numberParts[0] + numberParts[1] + "." + numberParts[2];
+    } else if (numberParts.length == 2) {
+      parsed = numberParts[0] + "." + numberParts[1];
+    } else {
+      throw new IllegalArgumentException("Ugyldig beløpsformat: " + stringToParse);
+    }
+    return new BigDecimal(parsed);
   }
 
   public static void main(String[] args) {
