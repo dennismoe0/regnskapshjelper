@@ -4,7 +4,12 @@ import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.LocalDate;
+import java.util.Collections;
+import java.util.List;
 import java.util.Locale;
 
 public class CsvParser {
@@ -28,44 +33,69 @@ public class CsvParser {
   }
 
   /**
-   * Takes in a string and parses it into a standardized BigDecimal.
+   * Takes in a string and parses it into a standardized BigDecimal. Should have more edge case
+   * coverage, but that's for later.
    *
    * @param stringToParse E.g. "2.001,23", specifically from a DNB csv.
    * @return BigDecimal to be used in value operations. E.g. "2001.23"
    */
   public BigDecimal BigDecimalFromStringDNB(String stringToParse) {
-    // Need to take in the string, use "." as thousands splitter, and "," as decimal.
-    // E.g. => "2.010,56", but also just "100,21" or "0,23"
-    // BigDecimal value = new BigDecimal("2000.23");
-    // Needs to split by . making 2.000 => 2000 .
-    // Then needs to split by , and adding it onto it with a period.
-    // 2000 + decimal e.g. 23 => 2000.23 which can be used
-    // STRING! If we use a double, double value = 2003.23.
-    // =>  BigDecimal value = BigDecimal.valueOf(2000.23);
-
-    // Need to handle edge cases
-
-    // Split by period and comma
-    String[] numberParts = stringToParse.split("[.,]");
-    // E.g. "2.000,23"
-    String parsed;
-    if (numberParts.length == 3) {
-      parsed = numberParts[0] + numberParts[1] + "." + numberParts[2];
-    } else if (numberParts.length == 2) {
-      parsed = numberParts[0] + "." + numberParts[1];
-    } else {
-      throw new IllegalArgumentException("Ugyldig beløpsformat: " + stringToParse);
+    if (stringToParse.isEmpty()) {
+      return new BigDecimal("0");
     }
-    return new BigDecimal(parsed);
+    String string1 = stringToParse.replace(".", "");
+    String result = string1.replace(",", ".");
+    System.out.print(result);
+    return new BigDecimal(result);
   }
 
+//  public Transaction ParsedCsv(String csvPath) {
+//  }
+
+  public List<String> readLines(String csvPath) throws IOException {
+    List<String> lines;
+    lines = Files.readAllLines(Path.of(csvPath), StandardCharsets.ISO_8859_1);
+    if (lines.isEmpty()) {
+      System.out.println("Read found no lines, empty list returned.");
+      return lines;
+    }
+    System.out.println("File read completed.");
+    return lines;
+  }
+
+  public DnbSections dnbSectionSplitter(List<String> lines) {
+    return new DnbSections(Collections.singletonList(""), Collections.singletonList(""));
+  }
+
+  /**
+   * Finds the index of the transaction header row in a DNB CSV export.
+   *
+   * <p>The header row is identified by the marker "Arkivref", which appears only in that row.
+   * Everything above it belongs to the account summary, everything below is transactions.
+   *
+   * @param lines all lines from the CSV file
+   * @return the zero-based index of the transaction header row
+   * @throws IllegalArgumentException if no header row is found
+   */
+  public int findTransactionHeaderIndex(List<String> lines) throws IllegalArgumentException {
+    // Go through entire list
+    for (int i = 0; i < lines.size(); i++) {
+      if (lines.get(i).contains("Arkivref")) {
+        return i;
+      }
+    }
+    throw new IllegalArgumentException("Fant ingen transaksjonsheader i fila");
+  }
+
+  // MUST STRIP AWAY QUOTATION
   public static void main(String[] args) {
     // Should be changed so input decides path
     String filePath = "data/guttasas_ekte_konto_utskrift.txt";
     String line;
     String delimiter = ";";
 
-    try (BufferedReader br = new BufferedReader(new FileReader(filePath))) {
+    try (BufferedReader br = new BufferedReader(
+        new FileReader(filePath, StandardCharsets.ISO_8859_1))) {
       // Stops if empty line, probably needs to handle edge cases (sudden empty line)
       while ((line = br.readLine()) != null) {
         String[] values = line.split(delimiter); // Splits by delimiter
