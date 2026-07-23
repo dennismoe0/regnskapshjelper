@@ -1,6 +1,7 @@
 package no.moefrilans.regnskap;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
@@ -13,11 +14,22 @@ import org.junit.jupiter.api.Test;
 public class CsvParserTest {
 
   private CsvParser parser;
+  private List<String> lines;
+  private DnbSections sections;
+  private String marker;
+
 
   @BeforeEach
   void setUp() {
     // Arrange
     parser = new CsvParser();
+    lines = List.of(
+        "\"Konto\";\"Kontonavn\"",
+        "\"1234.56.78903\";\"GUTTAS AS\"",
+        "\"Bokfort dato\";\"Status\";\"Arkivref.\";\"Referanse\"",
+        "\"02.01.2026\";\"B\";\"111111111\";\"222222\"");
+    sections = parser.dnbSectionSplitter(lines);
+    marker = "\"Arkivref.\"";
   }
 
   @Test
@@ -63,4 +75,31 @@ public class CsvParserTest {
     assertTrue(result.get(1).contains("\"65,34"));
   }
 
+  @Test
+  void findsDnbTransactionHeaderIndex() {
+
+    assertEquals(2, parser.findTransactionHeaderIndex(lines, marker));
+  }
+
+  @Test
+  void throwsWhenNoDnbTransactionHeader() {
+    List<String> linesShort = List.of("\"Konto\";\"Kontonavn\"");
+
+    assertThrows(IllegalArgumentException.class,
+        () -> parser.findTransactionHeaderIndex(linesShort, marker));
+  }
+
+  @Test
+  void sectionSplitterDnb() {
+    // Record with two different items
+    DnbSections sections = parser.dnbSectionSplitter(lines);
+
+    assertTrue(sections.summary().get(0).contains("Konto"));
+    assertTrue(sections.transactions().get(0).startsWith("\"02.01.2026\""));
+  }
+
+  @Test
+  void splitAndCleanSectionLinesTest() {
+
+  }
 }
