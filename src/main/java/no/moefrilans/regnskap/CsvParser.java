@@ -1,14 +1,12 @@
 package no.moefrilans.regnskap;
 
-import java.io.BufferedReader;
-import java.io.FileReader;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDate;
-import java.util.Collections;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
@@ -43,14 +41,11 @@ public class CsvParser {
     if (stringToParse.isEmpty()) {
       return new BigDecimal("0");
     }
-    String string1 = stringToParse.replace(".", "");
-    String result = string1.replace(",", ".");
-    System.out.print(result);
+    String string1 = stringToParse.replace("-", "");
+    String string2 = string1.replace(".", "");
+    String result = string2.replace(",", ".");
     return new BigDecimal(result);
   }
-
-//  public Transaction ParsedCsv(String csvPath) {
-//  }
 
   public List<String> readLines(String csvPath) throws IOException {
     List<String> lines;
@@ -63,51 +58,115 @@ public class CsvParser {
     return lines;
   }
 
-  public DnbSections dnbSectionSplitter(List<String> lines) {
-    return new DnbSections(Collections.singletonList(""), Collections.singletonList(""));
-  }
-
   /**
    * Finds the index of the transaction header row in a DNB CSV export.
    *
    * <p>The header row is identified by the marker "Arkivref", which appears only in that row.
    * Everything above it belongs to the account summary, everything below is transactions.
    *
-   * @param lines all lines from the CSV file
+   * @param lines  all lines from the CSV file
+   * @param marker header string to stop at
    * @return the zero-based index of the transaction header row
    * @throws IllegalArgumentException if no header row is found
    */
-  public int findTransactionHeaderIndex(List<String> lines) throws IllegalArgumentException {
+  public int findTransactionHeaderIndex(List<String> lines, String marker)
+      throws IllegalArgumentException {
     // Go through entire list
     for (int i = 0; i < lines.size(); i++) {
-      if (lines.get(i).contains("Arkivref")) {
+      if (lines.get(i).contains(marker)) {
         return i;
       }
     }
     throw new IllegalArgumentException("Fant ingen transaksjonsheader i fila");
   }
 
-  // MUST STRIP AWAY QUOTATION
-  public static void main(String[] args) {
-    // Should be changed so input decides path
-    String filePath = "data/guttasas_ekte_konto_utskrift.txt";
-    String line;
-    String delimiter = ";";
+  /**
+   * Splits a DNB export list into its two sections: the account summary and the transactions by
+   * index.
+   *
+   * <p>The transaction header row marks the boundary. Lines above it are the summary, lines below
+   * it are transaction rows. The header row itself is excluded from both.
+   *
+   * @param lines all lines from the CSV file
+   * @return the two sections as raw, unparsed lines
+   * @throws IllegalArgumentException if the file has no transaction header row
+   */
+  public DnbSections dnbSectionSplitter(List<String> lines) {
+    int index = findTransactionHeaderIndex(lines, "\"Arkivref.\"");
 
-    try (BufferedReader br = new BufferedReader(
-        new FileReader(filePath, StandardCharsets.ISO_8859_1))) {
-      // Stops if empty line, probably needs to handle edge cases (sudden empty line)
-      while ((line = br.readLine()) != null) {
-        String[] values = line.split(delimiter); // Splits by delimiter
-        // print for visual testing without test class atm.
-        for (String value : values) {
-          System.out.println(value + " ");
-        }
-        System.out.println();
-      }
-    } catch (IOException e) {
-      System.err.println(e.getMessage());
+    List<String> overviewSection = lines.subList(0, index);
+    List<String> transactionSection = lines.subList(index + 1, lines.size());
+    return new DnbSections(overviewSection, transactionSection);
+  }
+
+  /**
+   * Removes quotation marks '"' and splits lines into individual strings by the delimiter ';'.
+   *
+   * @param line String to be stripped and split.
+   * @return An array containing the new Strings.
+   */
+  public String[] splitAndCleanSectionLines(String line) {
+    // Each line from e.g. the Transaction section is a string containing an entire transaction
+    // Delimiter = ";" , we need to split by that AND remove the quotations in front and back.
+    return (line.replace("\"", "")).split(
+        ";", -1); // Should remove all quotation marks and split into array
+  }
+
+  public Transaction parseTransactionLine(String[] transaction) {
+    // Create the transactions, parseTransactions does the removal of quotations and splits into fields
+    // => Everything should be ready as strings to be parsed (BigDecimal etc) and inputted into a Transaction
+    LocalDate dateRegistered = LocalDateFromNorwegianString(transaction[0]);
+    String explanatoryText = transaction[1];
+    String status = transaction[2];
+    String transactionType = transaction[3];
+    LocalDate interestDate = LocalDateFromNorwegianString(transaction[4]);
+    BigDecimal moneyOut = BigDecimalFromStringDNB(transaction[5]);
+    BigDecimal moneyIn = BigDecimalFromStringDNB(transaction[6]);
+    String referenceTextArchive = transaction[7];
+    String referenceText = transaction[8];
+    return new Transaction(dateRegistered, explanatoryText, status, transactionType, interestDate,
+        moneyOut,
+        moneyIn, referenceTextArchive, referenceText);
+  }
+
+  public List<Transaction> parseTransactions(List<String> transactionLines) {
+    List<Transaction> result = new ArrayList<>();
+    for (String line : transactionLines) {
+      String[] fields = splitAndCleanSectionLines(line);
+      result.add(parseTransactionLine(fields));
     }
+    return result;
+  }
+
+  public Summary parseSummary(List<String> summaryLines) {
+    String[] accountRow = splitAndCleanSectionLines(summaryLines.get(1));
+    String[] totalsRow = splitAndCleanSectionLines(summaryLines.get(3));
+
+    String accountNumber = accountRow[0];
+    String accountName = accountRow[1];
+    BigDecimal openingBalance = BigDecimalFromStringDNB(totalsRow[0]);
+    BigDecimal moneyInTotal = BigDecimalFromStringDNB(totalsRow[1]);
+    BigDecimal moneyOutTotal = BigDecimalFromStringDNB(totalsRow[2]);
+    BigDecimal available = BigDecimalFromStringDNB(totalsRow[3]);
+
+    return new Summary(accountNumber, accountName, openingBalance,
+        moneyInTotal, moneyOutTotal, available);
+  }
+
+
+  public static void main(String[] args) throws IOException {
+
+    //String path = args[0]; // Filepath
+    String path = "data/guttasas_ekte_konto_utskrift.txt"; // Filepath
+
+    CsvParser parser = new CsvParser();
+
+    List<String> lines = parser.readLines(path);
+    DnbSections sections = parser.dnbSectionSplitter(lines);
+    Summary summary = parser.parseSummary(sections.summary());
+    List<Transaction> transactions = parser.parseTransactions(sections.transactions());
+    System.out.println(summary);
+    System.out.println(transactions);
   }
 }
 

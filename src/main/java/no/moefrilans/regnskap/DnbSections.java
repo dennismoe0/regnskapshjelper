@@ -11,5 +11,5 @@ import java.util.List;
  * @param transactions The list with the transaction strings.
  */
 public record DnbSections(List<String> summary, List<String> transactions) {
-
+  
 }
