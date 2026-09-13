@@ -25,7 +25,7 @@ public class CsvParserTest {
     parser = new CsvParser();
     lines = List.of(
         "\"Konto\";\"Kontonavn\"",
-        "\"1234.56.78903\";\"GUTTAS AS\"",
+        "\"1234.56.78903\";\"EKSEMPEL AS\"",
         "\"Bokfort dato\";\"Status\";\"Arkivref.\";\"Referanse\"",
         "\"02.01.2026\";\"B\";\"111111111\";\"222222\"");
     sections = parser.dnbSectionSplitter(lines);
